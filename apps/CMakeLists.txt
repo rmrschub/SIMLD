@@ -1,0 +1,2 @@
+add_subdirectory(simldBuild)
+add_subdirectory(simldSearch)
