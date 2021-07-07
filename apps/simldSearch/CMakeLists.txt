@@ -1,6 +1,6 @@
 project(simldSearch VERSION 0.1.0)
 
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++17 -Wall -Wextra -g -mbmi2 -mavx -mavx2 -madx -O3 -mtune='intel' -m64 -mlzcnt")
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++17 -Wall -Wextra -g -march=native -mbmi2 -mavx -mavx2 -madx -O3 -mtune='intel' -m64 -mlzcnt")
 
 add_executable(simldSearch main.cpp)
 

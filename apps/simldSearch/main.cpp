@@ -195,21 +195,29 @@ int main(int argc, char **argv)
 
     while(std::getline(std::cin, triplePattern))
     {   
-        std::vector<SIMLD::Triple> solutions{};
-        std::vector<std::string> results;
+        std::chrono::duration<double> query_prep_time = prepare_query(triplePattern, dictionary, queryBox);
+       
+        std::vector<SIMLD::Triple> solutions;
+        solutions.reserve(triples.size());
+        std::chrono::duration<double> query_exec_time = queryBox.range_lookup_by_filter_avx2(triples, solutions);
 
-        std::chrono::duration<double> query_prep_time = prepare_query(triplePattern, dictionary, queryBox);     
-        std::chrono::duration<double> query_exec_time = SIMLD::range_lookup_by_filter(queryBox, triples, solutions);
+//        std::vector<std::string> results;
+//        results.reserve(cardinality_estimate);        
+//        std::chrono::duration<double> dict_decode_time = dictionary_decode(solutions, dictionary, results);
+//        std::chrono::duration<double> output_time = print_results(results);
         
-        std::chrono::duration<double> dict_decode_time = dictionary_decode(solutions, dictionary, results);
-        std::chrono::duration<double> output_time = print_results(results);
-        
-        std::cout << "SIMLD: Found " << solutions.size() << " triples." << "\n";
         std::cout << "SIMLD: Prepared query in " << query_prep_time.count() << " s\n";
         std::cout << "SIMLD: Executed query in " << query_exec_time.count() << " s\n";
-        std::cout << "SIMLD: Dict-decoded triples in " << dict_decode_time.count() << " s\n";
-        std::cout << "SIMLD: Serialized triples in " << output_time.count() << " s\n";
-        std::cout << "SIMLD: " << (query_prep_time + query_exec_time + dict_decode_time + output_time).count() << " s\n";
+        std::cout << "SIMLD: Found " << solutions.size() << " triples." << "\n";
+
+//        std::cout << "SIMLD: Dict-decoded triples in " << dict_decode_time.count() << " s\n";
+//        std::cout << "SIMLD: Serialized triples in " << output_time.count() << " s\n";
+//        std::cout << "SIMLD: " << (query_prep_time + query_exec_time + dict_decode_time + output_time).count() << " s\n";
+
+        solutions.clear();
+        query_exec_time = queryBox.range_lookup_by_filter(triples, solutions);
+        std::cout << "SIMLD: Found " << solutions.size() << " triples." << "\n";
+        std::cout << "SIMLD: Executed query in " << query_exec_time.count() << " s\n";
     }
 
     return 0;

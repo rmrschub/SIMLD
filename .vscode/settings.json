@@ -86,6 +86,7 @@
         "utility": "cpp",
         "variant": "cpp",
         "vector": "cpp",
-        "numeric": "cpp"
+        "numeric": "cpp",
+        "filesystem": "cpp"
     },
 }

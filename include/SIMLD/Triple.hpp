@@ -33,6 +33,13 @@ namespace SIMLD
             INTERLACED_BITS_MSB = _mm256_extract_epi32(morton, 5);  // z[31]y[31]x[31]...z[22]y[22]x[22]z[21]y[21]
         }
 
+        Triple ()
+        {
+            INTERLACED_BITS_LSB = 0;  
+            INTERLACED_BITS_NSB = 0;  
+            INTERLACED_BITS_MSB = 0;  
+        }
+
         inline std::tuple<uint_fast32_t, uint_fast32_t, uint_fast32_t> decode() const
         {
             __m256i triple = _mm256_or_si256(_mm256_set_epi32(_pext_u32(INTERLACED_BITS_MSB, BMI2_Z_MASK) << 22, _pext_u32(INTERLACED_BITS_MSB, BMI2_X_MASK) << 21, _pext_u32(INTERLACED_BITS_MSB, BMI2_Y_MASK) << 21, 0x0, 0x0, 0x0, 0x0, 0x0),
