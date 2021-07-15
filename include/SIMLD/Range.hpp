@@ -26,7 +26,7 @@ namespace SIMLD
             upperBound = high;
         }
 
-        inline bool contains(Triple element) const
+        inline bool contains(const Triple& element) const
         {
             __m256i min = _mm256_set_epi32(lowerBound.INTERLACED_BITS_MSB, lowerBound.INTERLACED_BITS_NSB, lowerBound.INTERLACED_BITS_LSB, 0x0, 0x0, 0x0, 0x0, 0x0);
             __m256i max = _mm256_set_epi32(upperBound.INTERLACED_BITS_MSB, upperBound.INTERLACED_BITS_NSB, upperBound.INTERLACED_BITS_LSB, UINT32_MAX, UINT32_MAX, UINT32_MAX, UINT32_MAX, UINT32_MAX);
@@ -39,7 +39,6 @@ namespace SIMLD
         }
 
         inline uint_fast8_t avx2_contains(std::vector<Triple>::const_iterator start) const
-//        inline void avx2_contains(std::vector<Triple>::const_iterator start, std::vector<Triple>& solutions) 
         {
             __m256i lsb = _mm256_cmpeq_epi32(
                                 _mm256_add_epi32(
@@ -70,6 +69,10 @@ namespace SIMLD
                                     )
                                 )
                           );
+
+            if (_mm256_testz_si256(lsb, lsb)) { return 0; }
+         
+
             __m256i nsb = _mm256_cmpeq_epi32(
                                 _mm256_add_epi32(
                                     _mm256_set1_epi32(0x80000000),
@@ -99,6 +102,9 @@ namespace SIMLD
                                     )
                                 )
                         );
+
+            if (_mm256_testz_si256(lsb, lsb)) { return 0; }
+
             __m256i msb = _mm256_cmpeq_epi32(
                                 _mm256_add_epi32(
                                     _mm256_set1_epi32(0x80000000),
@@ -137,7 +143,7 @@ namespace SIMLD
             std::copy_if(start, end, std::back_inserter(solutions), [this] (auto t) { return this->contains(t); } );
         }
   
-        std::chrono::duration<double> range_lookup_by_filter(const std::vector<Triple>& triples, std::vector<Triple> &solutions)
+        inline std::chrono::duration<double> range_lookup(const std::vector<Triple>& triples, std::vector<Triple> &solutions)
         {
             auto start = std::chrono::high_resolution_clock::now();
 
@@ -184,24 +190,25 @@ namespace SIMLD
             return std::chrono::high_resolution_clock::now() - start;
         }
 
-        inline void filter_by_range_avx2(std::vector<Triple>::const_iterator start, const std::vector<Triple>::const_iterator end, std::vector<Triple> & partial_solutions)
+        inline void filter_by_range_avx2(std::vector<Triple>::const_iterator start, const std::vector<Triple>::const_iterator end, std::vector<Triple>& partial_solutions)
         {
+            uint_fast64_t tmp = 0;
             for (auto it = start; it != end; it = it+8)
             {
                 int m = avx2_contains(it);
+                tmp += _mm_popcnt_u32(m);
+
                 while (m) 
                 {
                     int ffs_bit_index = __builtin_ffs(m);
                     m = (m >> ffs_bit_index) << ffs_bit_index;
 
-                    // TODO: how to speed this up? 
-                    // loosing several orders of magitude here!
-                    partial_solutions.push_back(*(it+(ffs_bit_index-1)));
+                    partial_solutions.emplace_back(*(it+(ffs_bit_index-1)));
                 }
             }
         }
 
-        std::chrono::duration<double> range_lookup_by_filter_avx2(const std::vector<Triple>& triples, std::vector<Triple> &solutions)
+        inline std::chrono::duration<double> range_lookup_avx2(const std::vector<Triple>& triples, std::vector<Triple> &solutions)
         {
             auto start = std::chrono::high_resolution_clock::now();
 
@@ -218,18 +225,18 @@ namespace SIMLD
             sol7.reserve(8* elems_per_thread);
             sol8.reserve(8* elems_per_thread);
             sol9.reserve(8* elems_per_thread);
-      
+     
             tbb::parallel_invoke(
-                [&]{ filter_by_range_avx2(triples.begin() + 0 * 8 * elems_per_thread, triples.begin() + 1 * 8 * elems_per_thread, solutions); },
-                [&]{ filter_by_range_avx2(triples.begin() + 1 * 8 * elems_per_thread, triples.begin() + 2 * 8 * elems_per_thread, solutions); },
-                [&]{ filter_by_range_avx2(triples.begin() + 2 * 8 * elems_per_thread, triples.begin() + 3 * 8 * elems_per_thread, solutions); },
-                [&]{ filter_by_range_avx2(triples.begin() + 3 * 8 * elems_per_thread, triples.begin() + 4 * 8 * elems_per_thread, solutions); },
-                [&]{ filter_by_range_avx2(triples.begin() + 4 * 8 * elems_per_thread, triples.begin() + 5 * 8 * elems_per_thread, solutions); },
-                [&]{ filter_by_range_avx2(triples.begin() + 5 * 8 * elems_per_thread, triples.begin() + 6 * 8 * elems_per_thread, solutions); },
-                [&]{ filter_by_range_avx2(triples.begin() + 6 * 8 * elems_per_thread, triples.begin() + 7 * 8 * elems_per_thread, solutions); },
-                [&]{ filter_by_range_avx2(triples.begin() + 7 * 8 * elems_per_thread, triples.begin() + 8 * 8 * elems_per_thread, solutions); },
-                [&]{ filter_by_range_avx2(triples.begin() + 8 * 8 * elems_per_thread, triples.begin() + 9 * 8 * elems_per_thread, solutions); },
-                [&]{ filter_by_range_avx2(triples.begin() + 9 * 8 * elems_per_thread, triples.begin() + 10 * 8 * elems_per_thread, solutions); }
+                [&]{ filter_by_range_avx2(triples.begin() + 0 * 8 * elems_per_thread, triples.begin() + 1 * 8 * elems_per_thread, sol0); },
+                [&]{ filter_by_range_avx2(triples.begin() + 1 * 8 * elems_per_thread, triples.begin() + 2 * 8 * elems_per_thread, sol1); },
+                [&]{ filter_by_range_avx2(triples.begin() + 2 * 8 * elems_per_thread, triples.begin() + 3 * 8 * elems_per_thread, sol2); },
+                [&]{ filter_by_range_avx2(triples.begin() + 3 * 8 * elems_per_thread, triples.begin() + 4 * 8 * elems_per_thread, sol3); },
+                [&]{ filter_by_range_avx2(triples.begin() + 4 * 8 * elems_per_thread, triples.begin() + 5 * 8 * elems_per_thread, sol4); },
+                [&]{ filter_by_range_avx2(triples.begin() + 5 * 8 * elems_per_thread, triples.begin() + 6 * 8 * elems_per_thread, sol5); },
+                [&]{ filter_by_range_avx2(triples.begin() + 6 * 8 * elems_per_thread, triples.begin() + 7 * 8 * elems_per_thread, sol6); },
+                [&]{ filter_by_range_avx2(triples.begin() + 7 * 8 * elems_per_thread, triples.begin() + 8 * 8 * elems_per_thread, sol7); },
+                [&]{ filter_by_range_avx2(triples.begin() + 8 * 8 * elems_per_thread, triples.begin() + 9 * 8 * elems_per_thread, sol8); },
+                [&]{ filter_by_range_avx2(triples.begin() + 9 * 8 * elems_per_thread, triples.begin() + 10 * 8 * elems_per_thread, sol9); }
             );
 
             solutions.insert(std::end(solutions), std::begin(sol0), std::end(sol0));
@@ -244,25 +251,60 @@ namespace SIMLD
             solutions.insert(std::end(solutions), std::begin(sol9), std::end(sol9));
 
             // handle remaining elements
-            filter_by_range(triples.begin() + 10*8 * elems_per_thread, triples.end(), solutions);     
+            filter_by_range(triples.begin() + 10*8 * elems_per_thread, triples.end(), solutions);
 
             return std::chrono::high_resolution_clock::now() - start;
+        }
+
+        inline void worker_estimate_cardinality_avx2(std::vector<Triple>::const_iterator start, const std::vector<Triple>::const_iterator end, uint_fast64_t& cardinality_estimate)
+        {
+            uint_fast64_t up_to = 8*((std::lldiv(end-start, 8)).quot);
+            uint_fast64_t temp = 0;
+
+            for (auto it = start; it != (start + up_to); it = it+8) { temp += _mm_popcnt_u32(avx2_contains(it)); }
+            for (auto it = (start + up_to); it < end; it++) { if (contains(*it)) { temp += 1; } }
+
+            cardinality_estimate = temp;           
+        }
+
+        inline std::chrono::duration<double> estimate_cardinality_avx2(std::vector<Triple>::const_iterator start, const std::vector<Triple>::const_iterator end, uint_fast64_t& cardinality_estimate)
+        {
+            auto now = std::chrono::high_resolution_clock::now();
+
+            uint_fast64_t elems_per_thread = (std::lldiv(end-start, 10*8)).quot;
+            uint_fast64_t sol0, sol1, sol2, sol3, sol4, sol5, sol6, sol7, sol8, sol9;
+
+            tbb::parallel_invoke(
+                [&]{ worker_estimate_cardinality_avx2(start + 0 * 8 * elems_per_thread, start + 1 * 8 * elems_per_thread, sol0); },
+                [&]{ worker_estimate_cardinality_avx2(start + 1 * 8 * elems_per_thread, start + 2 * 8 * elems_per_thread, sol1); },
+                [&]{ worker_estimate_cardinality_avx2(start + 2 * 8 * elems_per_thread, start + 3 * 8 * elems_per_thread, sol2); },
+                [&]{ worker_estimate_cardinality_avx2(start + 3 * 8 * elems_per_thread, start + 4 * 8 * elems_per_thread, sol3); },
+                [&]{ worker_estimate_cardinality_avx2(start + 4 * 8 * elems_per_thread, start + 5 * 8 * elems_per_thread, sol4); },
+                [&]{ worker_estimate_cardinality_avx2(start + 5 * 8 * elems_per_thread, start + 6 * 8 * elems_per_thread, sol5); },
+                [&]{ worker_estimate_cardinality_avx2(start + 6 * 8 * elems_per_thread, start + 7 * 8 * elems_per_thread, sol6); },
+                [&]{ worker_estimate_cardinality_avx2(start + 7 * 8 * elems_per_thread, start + 8 * 8 * elems_per_thread, sol7); },
+                [&]{ worker_estimate_cardinality_avx2(start + 8 * 8 * elems_per_thread, start + 9 * 8 * elems_per_thread, sol8); },
+                [&]{ worker_estimate_cardinality_avx2(start + 9 * 8 * elems_per_thread, start + 10 * 8 * elems_per_thread, sol9); }
+
+            );
+            cardinality_estimate = sol0 + sol1 + sol2 + sol3 + sol4 + sol5 + sol6 + sol7 + sol8 + sol9;
+
+            for (auto it = (start + 10*8*elems_per_thread); it < end; it++) { if (contains(*it)) { cardinality_estimate += 1; } }
+
+            return std::chrono::high_resolution_clock::now() - now;
+        }
+
+        inline std::chrono::duration<double>  point_lookup(const Triple& point, const std::vector<Triple>& triples, std::vector<Triple> &solutions)
+        {
+            auto now = std::chrono::high_resolution_clock::now();
+
+            if (std::binary_search(triples.begin(), triples.end(), point))
+            {
+                solutions.push_back(point);
+            }
+
+            return std::chrono::high_resolution_clock::now() - now;
         }
     };
 
 } // namespace SIMLD
-
-
-/*
-            uint_fast8_t m = _mm256_movemask_ps(_mm256_castsi256_ps(_mm256_and_si256(lsb, _mm256_and_si256(nsb, msb))));
-            while (m) 
-            {
-                // Get the rightmost bit location. 
-                int BitOffset = __builtin_ffs(m);
-
-                // Clear the bit before the next iteration. 
-                m = (m >> BitOffset) << BitOffset;
-
-                solutions.push_back(*(start+(BitOffset-1)));
-            }
-*/

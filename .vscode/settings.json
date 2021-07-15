@@ -87,6 +87,7 @@
         "variant": "cpp",
         "vector": "cpp",
         "numeric": "cpp",
-        "filesystem": "cpp"
+        "filesystem": "cpp",
+        "unordered_set": "cpp"
     },
 }

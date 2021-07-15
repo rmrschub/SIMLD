@@ -35,4 +35,11 @@ build/
 extern/
 
 
-eswc.simld.index
+*.nt.index.simld
+*.nt.simld.index
+.DS_Store
+apps/.DS_Store
+*.hdt
+*.hdt.index.v1-1
+*.nt
+*.nt.simld
