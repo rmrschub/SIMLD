@@ -16,7 +16,7 @@
             },
             "includePath": [
                 "${workspaceFolder}/**",
-                "${vcpkgRoot}/x64-osx/include",
+                "${vcpkgRoot}/x64-osx/include/**",
                 "${workspaceFolder}/extern/marisa-trie/include/**",
                 "${workspaceFolder}/extern/TurboPFor-Integer-Compression/**"
             ],

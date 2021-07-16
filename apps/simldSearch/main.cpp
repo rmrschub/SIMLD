@@ -20,7 +20,7 @@ std::chrono::duration<double> load_dictionary(const std::string dictionary_file_
     return std::chrono::high_resolution_clock::now() - start;
 }
 
-std::chrono::duration<double> reconstruct_triples(const std::string index_file_name, std::vector<SIMLD::Triple>& reconstructed_triples)
+std::chrono::duration<double> reconstruct_triples(const std::string index_file_name, std::vector<SIMLD::Morton::Triple>& reconstructed_triples)
 {
     auto start = std::chrono::high_resolution_clock::now();
 
@@ -46,7 +46,7 @@ std::chrono::duration<double> reconstruct_triples(const std::string index_file_n
 
     for (uint_fast64_t i = 0; i<(3*(no_triples-1)); )
     { 
-        SIMLD::Triple t = SIMLD::Triple(0,0,0);
+        SIMLD::Morton::Triple t = SIMLD::Morton::Triple(0,0,0);
         t.INTERLACED_BITS_LSB = decoded_deltas[i];
         t.INTERLACED_BITS_NSB = decoded_deltas[i + 1];
         t.INTERLACED_BITS_MSB = decoded_deltas[i + 2];
@@ -60,7 +60,7 @@ std::chrono::duration<double> reconstruct_triples(const std::string index_file_n
     return std::chrono::high_resolution_clock::now() - start;
 }
 
-std::chrono::duration<double> prepare_query(const std::string& triplePattern, const marisa::Trie& trie, SIMLD::Range& queryBox)
+std::chrono::duration<double> prepare_query(const std::string& triplePattern, const marisa::Trie& trie, SIMLD::Morton::Range& queryBox)
 {
     auto start = std::chrono::high_resolution_clock::now();
 
@@ -99,14 +99,14 @@ std::chrono::duration<double> prepare_query(const std::string& triplePattern, co
         o_hi = (uint_fast32_t) agent.key().id();
     }
 
-    SIMLD::Triple lowerBound = SIMLD::Triple(s_lo, p_lo, o_lo);
-    SIMLD::Triple upperBound = SIMLD::Triple(s_hi, p_hi, o_hi);       
-    queryBox = SIMLD::Range(lowerBound, upperBound);
+    SIMLD::Morton::Triple lowerBound = SIMLD::Morton::Triple(s_lo, p_lo, o_lo);
+    SIMLD::Morton::Triple upperBound = SIMLD::Morton::Triple(s_hi, p_hi, o_hi);       
+    queryBox = SIMLD::Morton::Range(lowerBound, upperBound);
 
     return std::chrono::high_resolution_clock::now() - start;
 }
 
-void dictionary_decoder(std::vector<SIMLD::Triple>::const_iterator start, const std::vector<SIMLD::Triple>::const_iterator end, const marisa::Trie& trie, std::vector<std::string>& result)
+void dictionary_decoder(std::vector<SIMLD::Morton::Triple>::const_iterator start, const std::vector<SIMLD::Morton::Triple>::const_iterator end, const marisa::Trie& trie, std::vector<std::string>& result)
 {
     marisa::Agent agent;
     for (auto it = start; it != end; ++it) 
@@ -133,7 +133,7 @@ void dictionary_decoder(std::vector<SIMLD::Triple>::const_iterator start, const 
     }
 }
 
-std::chrono::duration<double> dictionary_decode(const std::vector<SIMLD::Triple>& solutions, const marisa::Trie& trie, std::vector<std::string>& result)
+std::chrono::duration<double> dictionary_decode(const std::vector<SIMLD::Morton::Triple>& solutions, const marisa::Trie& trie, std::vector<std::string>& result)
 {
     auto start = std::chrono::high_resolution_clock::now();
 
@@ -213,7 +213,7 @@ int main(int argc, char **argv)
     std::cout << "SIMLD: Loaded term dictionary in " << dict_load_time.count() << " s.\n";
 
 
-    std::vector<SIMLD::Triple> triples;
+    std::vector<SIMLD::Morton::Triple> triples;
     std::chrono::duration<double> triple_load_time = reconstruct_triples(index_file_name, triples);
     std::cout << "SIMLD: Loaded " << triples.size() << " compressed triple index in " << triple_load_time.count() << " s.\n";
     std::cout << "SIMLD: morton_min " <<triples.front() << "\n";
@@ -225,7 +225,7 @@ int main(int argc, char **argv)
 
     std::string triplePattern;
     marisa::Agent agent;
-    SIMLD::Range queryBox = SIMLD::Range(SIMLD::Triple(0,0,0), SIMLD::Triple(0,0,0));
+    SIMLD::Morton::Range queryBox = SIMLD::Morton::Range(SIMLD::Morton::Triple(0,0,0), SIMLD::Morton::Triple(0,0,0));
 
     while(std::getline(std::cin, triplePattern))
     {   
@@ -234,7 +234,7 @@ int main(int argc, char **argv)
         uint_fast64_t cardinality_estimate = 0;
         std::chrono::duration<double> card_estim_time = queryBox.estimate_cardinality_avx2(triples.begin(), triples.end(), cardinality_estimate);    
        
-        std::vector<SIMLD::Triple> solutions;
+        std::vector<SIMLD::Morton::Triple> solutions;
         solutions.reserve(cardinality_estimate);
         std::chrono::duration<double> query_exec_time = queryBox.range_lookup_avx2(triples, solutions);
         

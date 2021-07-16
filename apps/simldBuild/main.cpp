@@ -74,7 +74,7 @@ std::chrono::duration<double> dict_encode_triples(const marisa::Trie& dictionary
     return std::chrono::high_resolution_clock::now() - now;
 }
 
-std::chrono::duration<double> morton_encode_triples(std::vector<std::tuple<uint_fast32_t, uint_fast32_t, uint_fast32_t>>& dict_encoded_triples, std::vector<SIMLD::Triple>& morton_encoded_triples)
+std::chrono::duration<double> morton_encode_triples(std::vector<std::tuple<uint_fast32_t, uint_fast32_t, uint_fast32_t>>& dict_encoded_triples, std::vector<SIMLD::Morton::Triple>& morton_encoded_triples)
 {
     auto now = std::chrono::high_resolution_clock::now();
 
@@ -85,7 +85,7 @@ std::chrono::duration<double> morton_encode_triples(std::vector<std::tuple<uint_
         uint_fast32_t object_id    = std::get<2>(t);; 
 
 //        morton_encoded_triples.emplace_back(subject_id, predicate_id, object_id);
-        SIMLD::Triple morton_code = SIMLD::Triple(subject_id, predicate_id, object_id);
+        SIMLD::Morton::Triple morton_code = SIMLD::Morton::Triple(subject_id, predicate_id, object_id);
         morton_encoded_triples.push_back(morton_code);
     }
     std::stable_sort(morton_encoded_triples.begin(), morton_encoded_triples.end());
@@ -94,26 +94,26 @@ std::chrono::duration<double> morton_encode_triples(std::vector<std::tuple<uint_
     return std::chrono::high_resolution_clock::now() - now;
 }
 
-std::chrono::duration<double> compress_and_store_triple_index(const std::vector<SIMLD::Triple>& morton_encoded_triples, const std::string& triple_file_path)
+std::chrono::duration<double> compress_and_store_triple_index(const std::vector<SIMLD::Morton::Triple>& morton_encoded_triples, const std::string& triple_file_path)
 {
     auto now = std::chrono::high_resolution_clock::now();
 
     // differencing
     // TODO: merge the following loops!
-    std::vector<SIMLD::Triple> delta_triples;
+    std::vector<SIMLD::Morton::Triple> delta_triples;
     delta_triples.reserve(morton_encoded_triples.size());
     delta_triples.emplace_back(morton_encoded_triples.front());
 
     for (size_t i = 0; i<morton_encoded_triples.size()-1; i++)
     {
-        SIMLD::Triple diff = morton_encoded_triples[i+1] - morton_encoded_triples[i];
+        SIMLD::Morton::Triple diff = morton_encoded_triples[i+1] - morton_encoded_triples[i];
         delta_triples.emplace_back(diff);
     }
 
     std::vector<uint_fast32_t> encoder_input;
     encoder_input.reserve(3*delta_triples.size());
 
-    for(std::vector<SIMLD::Triple>::iterator it = delta_triples.begin(); it != delta_triples.end(); ++it) 
+    for(std::vector<SIMLD::Morton::Triple>::iterator it = delta_triples.begin(); it != delta_triples.end(); ++it) 
     {
         encoder_input.emplace_back(it->INTERLACED_BITS_LSB);
         encoder_input.emplace_back(it->INTERLACED_BITS_NSB);
@@ -179,7 +179,7 @@ int main(int argc, char **argv)
     std::chrono::duration<double> dict_encoding_time = dict_encode_triples(dictionary, triples, dict_encoded_triples);
     std::cout << "SIMLD: Dictionary encoding of " << dict_encoded_triples.size() << " triples took " << dict_encoding_time.count() << " s.\n";
 
-    std::vector<SIMLD::Triple> morton_encoded_triples;
+    std::vector<SIMLD::Morton::Triple> morton_encoded_triples;
     dict_encoded_triples.reserve(dict_encoded_triples.size());
     std::chrono::duration<double> morton_encoding_time = morton_encode_triples(dict_encoded_triples, morton_encoded_triples);
     std::cout << "SIMLD: Morton encoding of " << morton_encoded_triples.size() << " triples took " << morton_encoding_time.count() << " s.\n";
