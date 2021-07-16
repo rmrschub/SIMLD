@@ -3,11 +3,12 @@ project(simldBuild VERSION 0.1.0)
 
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++17 -Wall -Wextra -g -mbmi2 -mavx -mavx2 -madx -O3 -mtune='intel' -m64 -mlzcnt")
 
-add_executable(simldBuild main.cpp)
+add_executable(simldBuild main.cpp NTriplesParser.cpp)
 
 target_compile_features(simldBuild PRIVATE cxx_std_17)
 
 target_link_libraries(simldBuild PRIVATE
+    libserd.a
     marisa
     bitpack.o
     bitpack_avx2.o

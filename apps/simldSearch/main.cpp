@@ -220,7 +220,7 @@ int main(int argc, char **argv)
     std::cout << "SIMLD: morton_max " <<triples.back() << "\n";
 
     std::cout << "\n" << "SIMLD: Ready for query answering!" << "\n";
-    std::cout << "Please type Triple Search Pattern, using '?' for wildcards. e.g ? <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> ?" << "\n\n";
+    std::cout << "Please type Triple Search Pattern, using '?' for wildcards. e.g ? http://www.w3.org/1999/02/22-rdf-syntax-ns#type ?" << "\n\n";
 
 
     std::string triplePattern;

@@ -11,6 +11,7 @@ INCLUDE_DIRECTORIES(
 LINK_DIRECTORIES(
     ${PROJECT_SOURCE_DIR}/extern/marisa-trie/lib/
     ${PROJECT_SOURCE_DIR}/extern/TurboPFor-Integer-Compression/
+    /Users/resc01-admin/VisualStudio/vcpkg/installed/x64-osx/lib/
     /Users/resc01-admin/VisualStudio/vcpkg/installed/x64-osx/include/
 )
 

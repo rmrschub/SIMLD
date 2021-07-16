@@ -3,83 +3,38 @@
 #include <fstream>
 #include <sstream> 
 #include <string>
-#include <boost/algorithm/string/join.hpp>
 #include <vector>
 #include <tuple>
-#include <boost/unordered_set.hpp>
-#include <boost/tuple/tuple.hpp>
-#include <boost/tuple/tuple_comparison.hpp>
-#include <boost/foreach.hpp>
 #include <cinttypes>
 #include <numeric>
 #include <chrono> 
 #include <filesystem>
 #include <clocale>
 #include <locale>
+#include <algorithm>
+#include <unordered_set>
 
 #include "vp4.h"
 #include "marisa.h"
 #include "SIMLD/Triple.hpp"
+#include <SIMLD/NTriplesParser.hpp>
 
-typedef boost::tuple<std::string, std::string, std::string> triple_t;
 
-namespace boost::tuples {
-    size_t hash_value(tuple<std::string, std::string, std::string> const & t) 
-    {
-        std::string subject = get<0>(t);
-        std::string predicate = get<1>(t);
-        std::string object = get<2>(t);    
-
-        return std::hash<std::string>{}(subject.append(predicate.append(object))) ;
-    }
-}
-
-std::chrono::duration<double> parse_ntriples_document(const std::string& triple_file_path, boost::unordered_set<boost::tuple<std::string, std::string, std::string>>& triples)
+std::chrono::duration<double> parse_ntriples(const char* triple_file_path, std::vector<std::tuple<std::string, std::string, std::string>>* triples, marisa::Keyset* keyset)
 {
     auto now = std::chrono::high_resolution_clock::now();
 
-    std::ifstream triples_file(triple_file_path);
-    if(!triples_file.is_open()) throw std::runtime_error("Could not open triples file");
-
-    std::string line;
-    while(std::getline(triples_file, line))
-    {
-        std::istringstream iss(line); 
-        std::vector<std::string> terms{ std::istream_iterator<std::string>(iss), {} };
-        std::string subject = terms[0];
-        std::string predicate = terms[1];
-        std::string object = boost::algorithm::join(std::vector<std::string> {terms.begin() + 2, terms.end() - 1}, " ");
-
-        triples.insert(boost::make_tuple(subject, predicate, object));
-    }
-
-    triples_file.close();
+     SIMLD::NTriplesParser *parser = new SIMLD::NTriplesParser();
+     parser->doParse(triple_file_path, "http://dataset.com/dataset", SIMLD::NTRIPLES, true, triples, keyset);
 
     return std::chrono::high_resolution_clock::now() - now;
 }
 
-std::chrono::duration<double> compress_and_store_term_dictionary(marisa::Trie& dictionary, const boost::unordered_set<boost::tuple<std::string, std::string, std::string>>& unique_triples, const std::string& triple_file_path)
+std::chrono::duration<double> compress_and_store_term_dictionary(marisa::Trie& dictionary, marisa::Keyset& keyset, const std::string& triple_file_path)
 {
     auto now = std::chrono::high_resolution_clock::now();
 
-    // extract unique RDF terms
-    boost::unordered_set<std::string> unique_rdf_terms;
-    BOOST_FOREACH(const triple_t& triple, unique_triples)
-    {
-        unique_rdf_terms.insert(boost::get<0>(triple));
-        unique_rdf_terms.insert(boost::get<1>(triple));
-        unique_rdf_terms.insert(boost::get<2>(triple));
-
-    }  
-
-    // build MARISA trie as term-id-dictionary
-    marisa::Keyset keyset;
-    BOOST_FOREACH(const std::string& unique_term, unique_rdf_terms)
-    {
-        keyset.push_back(unique_term);
-    }
-    
-    dictionary.build(keyset, MARISA_MAX_NUM_TRIES | MARISA_TEXT_TAIL | MARISA_LABEL_ORDER | MARISA_TINY_CACHE);
+    dictionary.build(keyset, MARISA_MAX_NUM_TRIES | MARISA_TEXT_TAIL | MARISA_WEIGHT_ORDER | MARISA_HUGE_CACHE);
    
     std::string dict_file_path = std::filesystem::current_path().string();
     dict_file_path.append("/");
@@ -87,29 +42,29 @@ std::chrono::duration<double> compress_and_store_term_dictionary(marisa::Trie& d
     dict_file_path.append(".simld");
     dictionary.save(dict_file_path.c_str());
 
-    std::cout << "SIMLD: Compressed " << unique_rdf_terms.size() << " unique RDF terms into "  << dictionary.total_size() << " bytes.\n";
+    std::cout << "SIMLD: Compressed " << dictionary.num_nodes() << " unique RDF terms into "  << dictionary.total_size() << " bytes.\n";
     
     return std::chrono::high_resolution_clock::now() - now;
 }    
 
-std::chrono::duration<double> dict_encode_unique_triples(const marisa::Trie& dictionary, const boost::unordered_set<boost::tuple<std::string, std::string, std::string>>& unique_triples, std::vector<std::tuple<uint_fast32_t, uint_fast32_t, uint_fast32_t>>& dict_encoded_triples)
+std::chrono::duration<double> dict_encode_triples(const marisa::Trie& dictionary, const std::vector<std::tuple<std::string, std::string, std::string>>& triples, std::vector<std::tuple<uint_fast32_t, uint_fast32_t, uint_fast32_t>>& dict_encoded_triples)
 {
     auto now = std::chrono::high_resolution_clock::now();
 
     marisa::Agent agent;
     uint_fast32_t subject_id, predicate_id, object_id;
 
-    BOOST_FOREACH(const triple_t& triple, unique_triples)
+    for (const auto& triple: triples)
     {
-        agent.set_query(boost::get<0>(triple));
+        agent.set_query(std::get<0>(triple));
         dictionary.lookup(agent);
         subject_id = (uint_fast32_t) agent.key().id();
 
-        agent.set_query(boost::get<1>(triple));
+        agent.set_query(std::get<1>(triple));
         dictionary.lookup(agent);
         predicate_id = (uint_fast32_t) agent.key().id();
 
-        agent.set_query(boost::get<2>(triple));
+        agent.set_query(std::get<2>(triple));
         dictionary.lookup(agent);
         object_id = (uint_fast32_t) agent.key().id();
 
@@ -119,7 +74,7 @@ std::chrono::duration<double> dict_encode_unique_triples(const marisa::Trie& dic
     return std::chrono::high_resolution_clock::now() - now;
 }
 
-std::chrono::duration<double> morton_encode_unique_triples(std::vector<std::tuple<uint_fast32_t, uint_fast32_t, uint_fast32_t>>& dict_encoded_triples, std::vector<SIMLD::Triple>& morton_encoded_triples)
+std::chrono::duration<double> morton_encode_triples(std::vector<std::tuple<uint_fast32_t, uint_fast32_t, uint_fast32_t>>& dict_encoded_triples, std::vector<SIMLD::Triple>& morton_encoded_triples)
 {
     auto now = std::chrono::high_resolution_clock::now();
 
@@ -134,6 +89,7 @@ std::chrono::duration<double> morton_encode_unique_triples(std::vector<std::tupl
         morton_encoded_triples.push_back(morton_code);
     }
     std::stable_sort(morton_encoded_triples.begin(), morton_encoded_triples.end());
+    morton_encoded_triples.erase(std::unique(morton_encoded_triples.begin(), morton_encoded_triples.end()), morton_encoded_triples.end());
 
     return std::chrono::high_resolution_clock::now() - now;
 }
@@ -204,26 +160,28 @@ int main(int argc, char **argv)
 
     std::string triple_file_path = std::string(argv[1]);
     
-    std::cout << "SIMLD: Building SIMLD index for" << triple_file_path << ".\n";
 
-    // @TODO: use https://github.com/dice-group/rdf-parser
-    boost::unordered_set<boost::tuple<std::string, std::string, std::string>> unique_triples;
-    std::chrono::duration<double> triples_parse_time = parse_ntriples_document(triple_file_path, unique_triples);
-    std::cout << "SIMLD: Parsed " << unique_triples.size() << " triples in "  << triples_parse_time.count() << " s.\n";  
-
+    std::cout << "SIMLD: Building SIMLD index for " << triple_file_path << ".\n";
+    
+    std::vector<std::tuple<std::string, std::string, std::string>> triples;
     marisa::Trie dictionary;
+    marisa::Keyset keyset;
 
-    std::chrono::duration<double> dict_build_time = compress_and_store_term_dictionary(dictionary, unique_triples, triple_file_path);
+    // parsing RDF document and construct marisa::Keyset
+    std::chrono::duration<double> triples_parse_time = parse_ntriples(argv[1], &triples, &keyset);
+    std::cout << "SIMLD: Parsed " << triples.size() << " triples in "  << triples_parse_time.count() << " s.\n"; 
+    
+    std::chrono::duration<double> dict_build_time = compress_and_store_term_dictionary(dictionary, keyset, triple_file_path);
     std::cout << "SIMLD: Constructed term dictionary in " << dict_build_time.count() << " s.\n";  
 
     std::vector<std::tuple<uint_fast32_t, uint_fast32_t, uint_fast32_t>> dict_encoded_triples;
-    dict_encoded_triples.reserve(unique_triples.size());
-    std::chrono::duration<double> dict_encoding_time = dict_encode_unique_triples(dictionary, unique_triples, dict_encoded_triples);
+    dict_encoded_triples.reserve(triples.size());
+    std::chrono::duration<double> dict_encoding_time = dict_encode_triples(dictionary, triples, dict_encoded_triples);
     std::cout << "SIMLD: Dictionary encoding of " << dict_encoded_triples.size() << " triples took " << dict_encoding_time.count() << " s.\n";
 
     std::vector<SIMLD::Triple> morton_encoded_triples;
     dict_encoded_triples.reserve(dict_encoded_triples.size());
-    std::chrono::duration<double> morton_encoding_time = morton_encode_unique_triples(dict_encoded_triples, morton_encoded_triples);
+    std::chrono::duration<double> morton_encoding_time = morton_encode_triples(dict_encoded_triples, morton_encoded_triples);
     std::cout << "SIMLD: Morton encoding of " << morton_encoded_triples.size() << " triples took " << morton_encoding_time.count() << " s.\n";
 
     std::chrono::duration<double> index_build_time = compress_and_store_triple_index(morton_encoded_triples, triple_file_path);
